@@ -105,10 +105,11 @@ class FinancialNewsPipeline:
             DataFrame with collected news articles
         """
         try:
-            if self.api_key:
-                news_data = self._collect_from_api(query, days, sources)
-            else:
-                news_data = self._scrape_news(query)
+            if not self.api_key:
+                self.logger.warning("No NewsAPI key provided. Please set the NEWS_API_KEY environment variable.")
+                return pd.DataFrame()
+
+            news_data = self._collect_from_api(query, days, sources)
             
             df = pd.DataFrame(news_data)
             if not df.empty:

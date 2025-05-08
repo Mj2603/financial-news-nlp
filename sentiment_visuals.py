@@ -255,30 +255,6 @@ class SentimentVisualizer:
         Returns:
             Dash app
         """
-        # Check if DataFrame is empty
-        if df.empty:
-            self.app.layout = html.Div([
-                html.H1(
-                    "Financial News Sentiment Analysis Dashboard",
-                    style={
-                        'textAlign': 'center',
-                        'color': self.config['colors']['text'],
-                        'marginBottom': '30px'
-                    }
-                ),
-                html.Div([
-                    html.H2(
-                        "No data available. Please check your NewsAPI key and try again.",
-                        style={
-                            'textAlign': 'center',
-                            'color': 'red',
-                            'marginTop': '50px'
-                        }
-                    )
-                ])
-            ])
-            return self.app
-
         # Define the layout
         self.app.layout = html.Div([
             # Header
@@ -360,48 +336,40 @@ class SentimentVisualizer:
              Input('analysis-type', 'value')]
         )
         def update_dashboard(start_date, end_date, analysis_type):
-            try:
-                # Filter data by date range
-                mask = (df['publishedAt'] >= start_date) & (df['publishedAt'] <= end_date)
-                filtered_df = df[mask]
-                
-                if filtered_df.empty:
-                    return None, None, None, html.Div("No data available for the selected date range.")
-                
-                # Create word cloud
-                wordcloud = self.create_wordcloud(filtered_df['processed_text'])
-                wordcloud_img = wordcloud.to_image() if wordcloud else None
-                
-                # Create plots
-                timeline_fig = self.plot_sentiment_timeline(filtered_df)
-                dist_fig = self.plot_sentiment_distribution(filtered_df)
-                
-                # Create news table with professional styling
-                table = html.Table([
-                    html.Thead(html.Tr([
-                        html.Th("Date", style={'padding': '10px'}),
-                        html.Th("Title", style={'padding': '10px'}),
-                        html.Th("Sentiment", style={'padding': '10px'}),
-                        html.Th("Subjectivity", style={'padding': '10px'})
-                    ], style={'backgroundColor': self.config['colors']['primary'],
-                             'color': 'white'})),
-                    html.Tbody([
-                        html.Tr([
-                            html.Td(row['publishedAt'].strftime('%Y-%m-%d %H:%M'),
-                                   style={'padding': '10px'}),
-                            html.Td(row['title'], style={'padding': '10px'}),
-                            html.Td(f"{row['polarity']:.2f}", style={'padding': '10px'}),
-                            html.Td(f"{row['subjectivity']:.2f}", style={'padding': '10px'})
-                        ], style={'backgroundColor': 'white' if i % 2 == 0 else '#f8f9fa'})
-                        for i, (_, row) in enumerate(filtered_df.iterrows())
-                    ])
-                ], style={'width': '100%', 'borderCollapse': 'collapse'})
-                
-                return wordcloud_img, timeline_fig, dist_fig, table
-                
-            except Exception as e:
-                self.logger.error(f"Error updating dashboard: {str(e)}")
-                return None, None, None, html.Div(f"Error updating dashboard: {str(e)}")
+            # Filter data by date range
+            mask = (df['publishedAt'] >= start_date) & (df['publishedAt'] <= end_date)
+            filtered_df = df[mask]
+            
+            # Create word cloud
+            wordcloud = self.create_wordcloud(filtered_df['processed_text'])
+            wordcloud_img = wordcloud.to_image()
+            
+            # Create plots
+            timeline_fig = self.plot_sentiment_timeline(filtered_df)
+            dist_fig = self.plot_sentiment_distribution(filtered_df)
+            
+            # Create news table with professional styling
+            table = html.Table([
+                html.Thead(html.Tr([
+                    html.Th("Date", style={'padding': '10px'}),
+                    html.Th("Title", style={'padding': '10px'}),
+                    html.Th("Sentiment", style={'padding': '10px'}),
+                    html.Th("Subjectivity", style={'padding': '10px'})
+                ], style={'backgroundColor': self.config['colors']['primary'],
+                         'color': 'white'})),
+                html.Tbody([
+                    html.Tr([
+                        html.Td(row['publishedAt'].strftime('%Y-%m-%d %H:%M'),
+                               style={'padding': '10px'}),
+                        html.Td(row['title'], style={'padding': '10px'}),
+                        html.Td(f"{row['polarity']:.2f}", style={'padding': '10px'}),
+                        html.Td(f"{row['subjectivity']:.2f}", style={'padding': '10px'})
+                    ], style={'backgroundColor': 'white' if i % 2 == 0 else '#f8f9fa'})
+                    for i, (_, row) in enumerate(filtered_df.iterrows())
+                ])
+            ], style={'width': '100%', 'borderCollapse': 'collapse'})
+            
+            return wordcloud_img, timeline_fig, dist_fig, table
         
         return self.app
 
