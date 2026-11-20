@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "newsnlp"
+version = "0.2.0"
+description = "News headline sentiment vs. forward returns with point-in-time alignment"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.21",
+    "pandas>=1.5",
+    "textblob>=0.17",
+]
+
+[project.optional-dependencies]
+live = ["newsapi-python>=0.2.7", "yfinance>=0.2.31"]
+test = ["pytest>=7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

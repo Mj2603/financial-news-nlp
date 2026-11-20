@@ -1,0 +1,9 @@
+{
+  "status": "ok",
+  "totalResults": 3,
+  "articles": [
+    {"source": {"id": null, "name": "Example Wire"}, "title": "SYNTHETIC: Acme Corp posts strong revenue growth", "description": "Fixture article, not real news.", "url": "https://example.com/1", "publishedAt": "2024-03-04T14:30:00Z"},
+    {"source": {"id": null, "name": "Example Wire"}, "title": "SYNTHETIC: Acme Corp misses estimates", "description": null, "url": "https://example.com/2", "publishedAt": "2024-03-04T22:15:00Z"},
+    {"source": {"id": null, "name": "Example Wire"}, "title": null, "description": "Untitled fixture row, should be dropped.", "url": "https://example.com/3", "publishedAt": "2024-03-05T10:00:00Z"}
+  ]
+}
