@@ -1,147 +1,122 @@
-# Financial News Sentiment Analysis Framework
+# financial-news-nlp
 
-A sophisticated framework for quantitative analysis of financial news sentiment and its impact on market movements. This tool is designed for investment professionals seeking to incorporate alternative data into their market analysis and trading strategies.
+A small Python package for testing whether news-headline sentiment predicts
+next-day stock returns, with point-in-time alignment of news to trading
+sessions. Headlines are scored with the TextBlob lexicon, assigned to the first
+market close at or after their publication time, averaged per session, and
+compared with the forward close-to-close return using information coefficients
+(IC), t-statistics, hit rate and a sign-rule Sharpe ratio. The included
+experiment runs on seeded SYNTHETIC data with a known ground truth, because it
+was built and run without access to news or market-data APIs. It shows that
+the method recovers a planted signal and that bucketing news by calendar date
+creates a spurious signal through look-ahead.
 
-## Key Features
+## What is implemented
 
-- **Advanced News Aggregation**
-  - Real-time financial news collection from multiple sources
-  - Customizable data feeds for specific sectors and instruments
-  - Historical news data analysis capabilities
+| Module | Contents |
+|---|---|
+| `newsnlp.text` | Text cleaning (handles missing descriptions) and TextBlob polarity/subjectivity scoring on raw text |
+| `newsnlp.align` | Session assignment with a 16:00 New York close cut-off (UTC inputs converted), daily mean sentiment, forward returns, signal/return alignment, and a calendar-date assignment kept only for comparison |
+| `newsnlp.stats` | Pearson and Spearman IC, correlation t-statistic, OLS slope, annualised Sharpe, and an `evaluate()` report |
+| `newsnlp.synthetic` | Seeded generator: latent daily news factor, returns with immediate reaction plus one-day drift, template headlines with publication times spread across each session window |
+| `newsnlp.live` | Optional NewsAPI and yfinance loaders (key read from `NEWS_API_KEY`); not used by the experiment and not tested against the live APIs |
 
-- **Quantitative Text Analysis**
-  - Advanced NLP techniques for financial text processing
-  - Entity recognition for financial instruments and companies
-  - Custom sentiment scoring models
+Point-in-time rule: the signal for session t uses articles published in
+(close of t-1, close of t] and is compared with the return from close t to
+close t+1. Exchange holidays are not modelled: pass the actual trading days
+of the price series to `assign_session`.
 
-- **Market Impact Analysis**
-  - Correlation analysis between news sentiment and price movements
-  - Volatility impact assessment
-  - Trading signal generation
+## How to run
 
-- **Professional Visualization Suite**
-  - Institutional-grade interactive dashboards
-  - Customizable reporting tools
-  - Real-time monitoring capabilities
+Requires Python 3.9 or later. Tested with Python 3.13, numpy 2.5.5,
+pandas 3.1.1 and textblob 0.20.1.
 
-## Technical Requirements
-
-- Python 3.8+
-- PostgreSQL 12+ (for production deployment)
-- 8GB RAM minimum (16GB recommended)
-- Multi-core processor
-
-## Installation
-
-1. Clone the repository:
 ```bash
 git clone https://github.com/Mj2603/financial-news-nlp.git
 cd financial-news-nlp
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install -e ".[test]"
+pytest
+python scripts/run_synthetic_experiment.py
 ```
 
-2. Set up a virtual environment:
+The experiment takes a few seconds and writes
+`results/synthetic_experiment.md` and `results/synthetic_experiment.csv`.
+
+To use live data (requires network access and a NewsAPI key):
+
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -e ".[live]"
+export NEWS_API_KEY=...          # never commit the key
 ```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Configure the NLP models:
-```bash
-python -m spacy download en_core_web_sm
-```
-
-## Usage
-
-### Basic Implementation
 
 ```python
-from nlp_pipeline import FinancialNewsPipeline
-from sentiment_visuals import SentimentVisualizer
+from newsnlp import score_articles, assign_session, daily_sentiment, align, evaluate
+from newsnlp.live import fetch_news, fetch_close
 
-# Initialize the pipeline with your API credentials
-pipeline = FinancialNewsPipeline(api_key='YOUR_API_KEY')
-
-# Collect and analyze news data
-news_df = pipeline.collect_news("AAPL", days=30)
-processed_df = pipeline.process_news(news_df)
-
-# Generate market analysis
-market_data = pipeline.get_market_data("AAPL")
-
-# Launch the analysis dashboard
-visualizer = SentimentVisualizer()
-app = visualizer.create_dashboard(processed_df)
-app.run_server(debug=False, port=8050)
+close = fetch_close("AAPL", start="2024-01-01")
+news = score_articles(fetch_news("Apple", days=30))
+news["session"] = assign_session(news["published_at"], close.index)
+print(evaluate(align(daily_sentiment(news)["sentiment"], close)))
 ```
 
-### Production Deployment
+A `Dockerfile` is included that installs the package, runs the tests and then
+the experiment. It was not built in the environment used for this revision.
 
-For production environments, we recommend:
-- Using a reverse proxy (e.g., Nginx)
-- Implementing proper authentication
-- Setting up SSL certificates
-- Using a production-grade database
-- Implementing proper logging and monitoring
+## Results (SYNTHETIC data)
 
-## Project Architecture
+Source: `scripts/run_synthetic_experiment.py` with default settings (20 seeds,
+1000 business days each, about 3 template headlines per day). No real news or
+prices are involved. In the `drift` scenario returns contain a predictable
+component (a = 0.5, b = 0.1); in `null` they contain none (b = 0).
+`oracle` uses the latent factor directly, `session` is the point-in-time
+headline signal, `calendar` buckets headlines by calendar date.
 
-```
-financial-news-nlp/
-├── data/
-│   ├── raw/           # Raw news data
-│   ├── processed/     # Processed sentiment data
-│   └── market/        # Market data
-├── src/
-│   ├── nlp_pipeline.py    # Core NLP processing
-│   ├── sentiment_visuals.py   # Visualization engine
-│   └── market_analysis.py     # Market impact analysis
-├── tests/             # Unit and integration tests
-├── config/           # Configuration files
-├── requirements.txt
-└── README.md
-```
+| scenario | method | theory_oracle_ic | mean_ic | sd_ic | mean_t | mean_hit_rate | mean_sharpe | n_days |
+|---|---|---|---|---|---|---|---|---|
+| drift | oracle | 0.089 | 0.080 | 0.026 | 2.552 | 0.524 | 1.023 | 1000 |
+| drift | session | 0.089 | 0.042 | 0.028 | 1.291 | 0.516 | 0.657 | 947 |
+| drift | calendar | 0.089 | 0.123 | 0.030 | 3.741 | 0.553 | 1.931 | 912 |
+| null | oracle | 0.000 | -0.008 | 0.027 | -0.263 | 0.497 | -0.102 | 1000 |
+| null | session | 0.000 | -0.011 | 0.028 | -0.331 | 0.494 | -0.177 | 947 |
+| null | calendar | 0.000 | 0.088 | 0.030 | 2.659 | 0.537 | 1.364 | 912 |
 
-## Dependencies
+Reading the table:
 
-- pandas >= 1.5.0
-- numpy >= 1.21.0
-- nltk >= 3.8.1
-- spacy >= 3.7.2
-- beautifulsoup4 >= 4.12.0
-- requests >= 2.31.0
-- newsapi-python >= 0.2.7
-- yfinance >= 0.2.0
-- matplotlib >= 3.7.0
-- seaborn >= 0.12.0
-- wordcloud >= 1.9.0
-- textblob >= 0.17.1
-- scikit-learn >= 1.0.0
-- plotly >= 5.13.0
-- dash >= 2.9.0
+- The oracle IC is close to the closed-form value in both scenarios, which
+  checks the alignment and statistics code.
+- The point-in-time headline signal recovers about half the oracle IC in the
+  drift scenario, and about zero in the null scenario.
+- Calendar-date bucketing gives an IC of 0.088 (mean t of 2.66) in the null
+  scenario where nothing is predictable. This is look-ahead: headlines
+  published after the close carry information about the next day's move.
 
-## Performance Considerations
+## Limitations
 
-- The framework is optimized for processing large volumes of financial news
-- Supports parallel processing for improved performance
-- Implements efficient data caching mechanisms
-- Optimized for low-latency market data processing
+- All reported numbers come from synthetic data generated by this repository.
+  They say nothing about whether sentiment predicts returns in real markets.
+- The synthetic headlines are drawn from a few fixed templates that TextBlob
+  scores easily. Real headlines are noisier, so real-data ICs would be lower.
+- TextBlob is a general-purpose lexicon, not a finance-specific one
+  (for example Loughran-McDonald) or a trained model such as FinBERT.
+- Single asset, daily frequency, no transaction costs, no holiday calendar,
+  no control for market or sector returns.
+- The live loaders are thin wrappers and have only been tested against a
+  stored NewsAPI-format fixture, not against the live services. NewsAPI's free
+  tier limits history to about one month, which is too short for a
+  meaningful IC estimate.
 
-## Security
+## Changes from the previous version
 
-- All API keys and credentials are managed through environment variables
-- Implements proper input validation and sanitization
-- Follows OWASP security best practices
-- Supports integration with enterprise authentication systems
+The earlier README described features that were not implemented (market
+impact analysis, signal generation, entity-based analytics, parallel
+processing, caching, enterprise security). The code removed stop words,
+including "not", before scoring, which can flip the sign of a headline;
+pinned dependencies that do not install on current Python; and had no tests.
+The Dash dashboard and spaCy entity extraction were removed rather than
+maintained, since no analysis used them.
 
 ## License
 
-Proprietary - All rights reserved
-
-## Support
-
-For enterprise support and custom implementations, please contact the development team. 
+No license file is included; all rights reserved by the author.
